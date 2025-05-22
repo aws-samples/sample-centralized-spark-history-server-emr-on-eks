@@ -202,7 +202,4 @@ This project is licensed under the terms specified in the [LICENSE](/LICENSE) fi
 
 ## Disclaimer
 
-This solution deploys open-source software including [Spark History Server](https://spark.apache.org/docs/latest/) in the AWS cloud. AWS makes no claims regarding security properties of any open-source software. Please evaluate all open-source software including Spark History Server according to your organization's security best practices before implementing the solution.
-
-
 This solution deploys open-source software, including [Apache Spark](https://spark.apache.org/docs/latest/) and [Spark History Server](https://spark.apache.org/docs/latest/), in the AWS cloud. AWS makes no claims regarding security properties of any open-source software. Please evaluate all open-source software, including Apache Spark and Spark History Server, according to your organization's security best practices before implementing the solution.
