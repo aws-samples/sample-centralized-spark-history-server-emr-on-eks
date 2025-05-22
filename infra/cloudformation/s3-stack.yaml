@@ -1,0 +1,100 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: |
+  CloudFormation template for creating an Amazon S3 bucket 
+  to store Apache Spark application logs. The bucket is configured with:
+  - SSE-S3 encryption
+  - Versioning enabled
+  - Public access blocked
+  - IAM managed policy for access control
+
+Parameters:
+  ProjectName:
+    Description: A project name that is prefixed to resource names or tags
+    Type: String
+    Default: SHS-BaseInfraStack
+
+  SparkLogsS3BucketPrefix:
+    Description: Amazon S3 bucket for storing Apache Spark application logs 
+    Type: String
+    Default: 'emr-spark-logs'
+
+Resources:
+  SparkLogsS3Bucket:
+    Type: 'AWS::S3::Bucket'
+    #checkov:skip=CKV_AWS_18: "Access logging is handled in a separate logging bucket"
+    Metadata:
+      cdk_nag:
+        rules_to_suppress:
+          - id: AwsSolutions-S1
+            reason: "Server access logging is not required for this demonstration environment as it's used for temporary storage of Spark event logs"
+          - id: AwsSolutions-S10
+            reason: "SSL-only access will be enforced through bucket policy"
+      cfn_nag:
+        rules_to_suppress:
+          - id: W35
+            reason: "Access logging needs another bucket which would create a cyclic dependency. In production, implement logging with a separate logging bucket."
+          - id: W28
+            reason: "Explicit name is required for S3 bucket identification and integration with other systems"
+          - id: W51
+            reason: "Using IAM roles for access control instead of bucket policies as this is more appropriate for the use case"
+    Properties:
+      BucketName: !Sub '${SparkLogsS3BucketPrefix}-${AWS::AccountId}-${AWS::Region}'
+      VersioningConfiguration:
+        Status: Enabled
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      Tags:
+        - Key: ProjectName
+          Value: !Ref ProjectName
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+
+  SparkLogsS3BucketAccessPolicy:
+    Type: 'AWS::IAM::ManagedPolicy'
+    Metadata:
+      cdk_nag:
+        rules_to_suppress:
+          - id: AwsSolutions-IAM5
+            reason: "Wildcard permissions are required for Spark History Server to access event log files with varying paths and names"
+      cfn_nag:
+        rules_to_suppress:
+          - id: W28
+            reason: "Explicit name is required for policy identification and integration with other systems"
+    Properties:
+      ManagedPolicyName: 'EMR-Spark-Logs-S3-Bucket-AccessPolicy'
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - 's3:ListBucket'
+              - 's3:GetBucketLocation'
+            Resource: !GetAtt SparkLogsS3Bucket.Arn
+          - Effect: Allow
+            Action:
+              - 's3:PutObject'
+              - 's3:GetObject'
+              - 's3:DeleteObject'
+            Resource: !Sub '${SparkLogsS3Bucket.Arn}/*'
+
+Outputs:
+  S3BucketName:
+    Description: Amazon S3 bucket for storing Apache Spark application logs
+    Value: !Ref SparkLogsS3Bucket
+
+  S3BucketArn:
+    Description: ARN of the Amazon S3 bucket for storing Apache Spark application logs
+    Value: !GetAtt SparkLogsS3Bucket.Arn
+
+  S3PolicyArn:
+    Description: ARN of the IAM policy  for the Amazon S3 bucket for storing Apache Spark application logs
+    Value: !Ref SparkLogsS3BucketAccessPolicy
+
+

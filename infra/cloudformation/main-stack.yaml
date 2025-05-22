@@ -1,0 +1,138 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: |
+  CloudFormation template for creating prerequisite infrastructure 
+  required to demonstrate the deployment of a Centralized Spark 
+  History Server. This template orchestrates the deployment of:
+  - KMS key for encryption
+  - VPC with public/private subnets across 2 AZs
+  - S3 bucket for Spark application logs
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "AWS CloudFormation templates location"
+        Parameters:
+          - CfnTemplatesBucketName
+          - CfnTemplateKeyPrefixName
+      - Label:
+          default: "Environment Configuration"
+        Parameters:
+          - ProjectName
+      - Label:
+          default: "Network Configuration"
+        Parameters:
+          - VpcCIDR
+          - PublicSubnet1CIDR
+          - PublicSubnet2CIDR
+          - PrivateSubnet1CIDR
+          - PrivateSubnet2CIDR
+      - Label:
+          default: "S3 Configuration"
+        Parameters:
+          - SparkLogsS3BucketPrefix
+
+Parameters:
+  # Bucket to store CFN templates
+  CfnTemplatesBucketName:
+    Description: Name of the S3 bucket containing the nested stack templates
+    Type: String
+
+  # S3 Prefix to store CFN templates
+  CfnTemplateKeyPrefixName:
+    Description: Name of the S3 prefix containing the nested stack templates
+    Type: String
+    Default: infra
+
+  # Resource Tag
+  ProjectName:
+    Description: A project name that is prefixed to resource names or tags
+    Type: String
+    Default: SHS-BaseInfraStack
+
+  # Network
+  VpcCIDR:
+    Description: Please enter the IP range (CIDR notation) for this VPC
+    Type: String
+    Default: 10.192.0.0/16
+
+  PublicSubnet1CIDR:
+    Description: Please enter the IP range (CIDR notation) for the public subnet in the first Availability Zone
+    Type: String
+    Default: 10.192.10.0/24
+
+  PublicSubnet2CIDR:
+    Description: Please enter the IP range (CIDR notation) for the public subnet in the second Availability Zone
+    Type: String
+    Default: 10.192.11.0/24
+
+  PrivateSubnet1CIDR:
+    Description: Please enter the IP range (CIDR notation) for the private subnet in the first Availability Zone
+    Type: String
+    Default: 10.192.20.0/24
+
+  PrivateSubnet2CIDR:
+    Description: Please enter the IP range (CIDR notation) for the private subnet in the second Availability Zone
+    Type: String
+    Default: 10.192.21.0/24
+
+  # S3
+  SparkLogsS3BucketPrefix:
+    Description: Amazon S3 bucket for storing Apache Spark application logs 
+    Type: String
+    Default: 'emr-spark-logs'
+
+Resources:
+  # Network
+  NetworkStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub https://${CfnTemplatesBucketName}.s3.${AWS::Region}.amazonaws.com/cloudformation/${CfnTemplateKeyPrefixName}/network-stack.yaml
+      Parameters:
+        ProjectName: !Ref ProjectName
+        VpcCIDR: !Ref VpcCIDR
+        PublicSubnet1CIDR: !Ref PublicSubnet1CIDR
+        PublicSubnet2CIDR: !Ref PublicSubnet2CIDR
+        PrivateSubnet1CIDR: !Ref PrivateSubnet1CIDR
+        PrivateSubnet2CIDR: !Ref PrivateSubnet2CIDR
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+
+  # S3
+  S3Stack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub https://${CfnTemplatesBucketName}.s3.${AWS::Region}.amazonaws.com/cloudformation/${CfnTemplateKeyPrefixName}/s3-stack.yaml
+      Parameters:
+        ProjectName: !Ref ProjectName
+        SparkLogsS3BucketPrefix: !Ref SparkLogsS3BucketPrefix
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+
+Outputs:  
+  # Network 
+  VPC:
+    Description: A reference to the created VPC
+    Value: !GetAtt NetworkStack.Outputs.VPC
+
+  PublicSubnets:
+    Description: A list of the public subnets
+    Value: !GetAtt NetworkStack.Outputs.PublicSubnets
+
+  PrivateSubnets:
+    Description: A list of the private subnets
+    Value: !GetAtt NetworkStack.Outputs.PrivateSubnets
+  
+  # S3
+  S3BucketName:
+    Description: Name of the S3 bucket for Apache Spark Logs
+    Value: !GetAtt S3Stack.Outputs.S3BucketName
+
+  S3BucketArn:
+    Description: ARN of the IAM policy  for the S3 bucket for Apache Spark Logs
+    Value: !GetAtt S3Stack.Outputs.S3BucketArn
+
+  S3PolicyArn:
+    Description: ARN of the S3 bucket for Apache Spark Logs 
+    Value: !GetAtt S3Stack.Outputs.S3PolicyArn
+

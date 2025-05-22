@@ -1,0 +1,127 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: emr
+  name: spark-driver-role
+rules:
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["get"]
+  - apiGroups: [""]
+    resources:
+      [
+        "serviceaccounts",
+        "services",
+        "configmaps",
+        "events",
+        "pods",
+        "pods/log",
+      ]
+    verbs:
+      [
+        "get",
+        "list",
+        "watch",
+        "describe",
+        "create",
+        "edit",
+        "delete",
+        "deletecollection",
+        "annotate",
+        "patch",
+        "label",
+      ]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["create", "patch", "delete", "watch"]
+  - apiGroups: ["apps"]
+    resources: ["statefulsets", "deployments"]
+    verbs:
+      [
+        "get",
+        "list",
+        "watch",
+        "describe",
+        "create",
+        "edit",
+        "delete",
+        "annotate",
+        "patch",
+        "label",
+      ]
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs:
+      [
+        "get",
+        "list",
+        "watch",
+        "describe",
+        "create",
+        "edit",
+        "delete",
+        "annotate",
+        "patch",
+        "label",
+      ]
+  - apiGroups: ["extensions", "networking.k8s.io"]
+    resources: ["ingresses"]
+    verbs:
+      [
+        "get",
+        "list",
+        "watch",
+        "describe",
+        "create",
+        "edit",
+        "delete",
+        "annotate",
+        "patch",
+        "label",
+      ]
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    resources: ["roles", "rolebindings"]
+    verbs:
+      [
+        "get",
+        "list",
+        "watch",
+        "describe",
+        "create",
+        "edit",
+        "delete",
+        "deletecollection",
+        "annotate",
+        "patch",
+        "label",
+      ]
+  - apiGroups: [""]
+    resources: ["persistentvolumeclaims"]
+    verbs:
+      [
+        "get",
+        "list",
+        "watch",
+        "describe",
+        "create",
+        "edit",
+        "delete",
+        "deletecollection",
+        "annotate",
+        "patch",
+        "label",
+      ]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: spark-driver-rolebinding
+  namespace: emr
+subjects:
+  - kind: ServiceAccount
+    name: emr-containers-sa-spark
+    namespace: emr
+roleRef:
+  kind: Role
+  name: spark-driver-role
+  apiGroup: rbac.authorization.k8s.io

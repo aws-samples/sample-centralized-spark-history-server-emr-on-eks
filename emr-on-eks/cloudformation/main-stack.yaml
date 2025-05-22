@@ -1,0 +1,128 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Main Stack for setup on Multiple EMR in EKS clusters."
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "CFN templates Location"
+        Parameters:
+          - CfnTemplatesBucketName
+          - CfnTemplateKeyPrefixName
+      - Label:
+          default: "Environment Configuration"
+        Parameters:
+          - ProjectName
+      - Label:
+          default: "Networking  Details"
+        Parameters:
+          - VPC
+          - PrivateSubnets
+      - Label:
+          default: "EKS Configuration"
+        Parameters:
+          - DataScienceClusterName
+          - AnalyticsClusterName
+          - ClusterVersion
+          - InstanceType
+
+Parameters:
+  # Bucket to store CFN templates
+  CfnTemplatesBucketName:
+    Description: Name of the S3 bucket containing the nested stack templates
+    Type: String
+
+  # Bucket to store CFN templates
+  CfnTemplateKeyPrefixName:
+    Description: Name of the S3 prefix containing the nested stack templates
+    Type: String
+    Default: "emr-on-eks"
+
+  # Resource Tag
+  ProjectName:
+    Description: An environment name that is prefixed to resource names
+    Type: String
+    Default: "SHS-EMROnEKSStack"
+
+  # Networking Details
+  VPC:
+    Description: VPC ID from the Infra stack
+    Type: AWS::EC2::VPC::Id
+
+  PrivateSubnets:
+    Description: Private subnets from the Infra stack
+    Type: String
+
+  # EKS
+  DataScienceClusterName:
+    Description: Name of the Data Science EKS cluster
+    Type: String
+    Default: datascience-cluster
+
+  AnalyticsClusterName:
+    Description: Name of the Analytics EKS cluster
+    Type: String
+    Default: analytics-cluster
+
+  ClusterVersion:
+    Description: Kubernetes version for EKS clusters
+    Type: String
+    Default: "1.32"
+
+  InstanceType:
+    Description: EC2 instance type for the EKS worker nodes
+    Type: String
+    Default: m5.2xlarge
+
+Resources:
+  EKSStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub https://${CfnTemplatesBucketName}.s3.${AWS::Region}.amazonaws.com/cloudformation/${CfnTemplateKeyPrefixName}/eks-stack.yaml
+      Parameters:
+        ProjectName: !Ref ProjectName
+        VPC: !Ref VPC
+        PrivateSubnets: !Ref PrivateSubnets
+        InstanceType: !Ref InstanceType
+        DataScienceClusterName: !Ref DataScienceClusterName
+        AnalyticsClusterName: !Ref AnalyticsClusterName
+        ClusterVersion: !Ref ClusterVersion
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+
+  EMROnEKSStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn:
+      - EKSStack
+    Properties:
+      TemplateURL: !Sub https://${CfnTemplatesBucketName}.s3.${AWS::Region}.amazonaws.com/cloudformation/${CfnTemplateKeyPrefixName}/emr-on-eks-stack.yaml
+      Parameters:
+        ProjectName: !Ref ProjectName
+        CreateEMRContainersServiceLinkedRole: "false"
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+
+Outputs:
+  DataScienceClusterName:
+    Description: Name of the Data Science EKS cluster
+    Value: !GetAtt EKSStack.Outputs.DataScienceClusterName
+
+  DataScienceClusterEndpoint:
+    Description: API server endpoint of the Data Science EKS cluster
+    Value: !GetAtt EKSStack.Outputs.DataScienceClusterEndpoint
+
+  DataScienceEKSSecurityGroup:
+    Description: Security Group ID for the Data Science EKS cluster
+    Value: !GetAtt EKSStack.Outputs.DataScienceEKSSecurityGroup
+
+  AnalyticsClusterName:
+    Description: Name of the Analytics EKS cluster
+    Value: !GetAtt EKSStack.Outputs.AnalyticsClusterName
+
+  AnalyticsClusterEndpoint:
+    Description: API server endpoint of the Analytics EKS cluster
+    Value: !GetAtt EKSStack.Outputs.AnalyticsClusterEndpoint
+
+  AnalyticsEKSSecurityGroup:
+    Description: Security Group ID for the Analytics EKS cluster
+    Value: !GetAtt EKSStack.Outputs.AnalyticsEKSSecurityGroup

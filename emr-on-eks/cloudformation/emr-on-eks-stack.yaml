@@ -1,0 +1,181 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "CloudFormation template for IAM Roles, Policies, OIDC Providers, and EMR on EKS Virtual Clusters"
+
+Parameters:
+  ProjectName:
+    Description: An environment name that is prefixed to resource names
+    Type: String
+    Default: "SHS-EMROnEKSStack"
+
+  CreateEMRContainersServiceLinkedRole:
+    Type: String
+    Default: "false"
+    AllowedValues:
+      - "true"
+      - "false"
+    Description: Set to true if the AWSServiceRoleForAmazonEMRContainers doesn't exists. It is usually already present.
+
+  EMRONEKSRepoName:
+    Description: Name of the ECR repository for EMR on EKS Custom Image 
+    Type: String
+    Default: "emr-7.2.0_custom" 
+
+Conditions:
+  ShouldCreateEMRContainersServiceLinkedRole: !Equals
+    - !Ref CreateEMRContainersServiceLinkedRole
+    - "true"
+
+Resources:
+  EMRONEKSKMSKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: KMS key for EMR on EKS ECR repository
+      EnableKeyRotation: true
+      KeyPolicy:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: Enable IAM User Permissions
+            Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:root'
+            Action: 'kms:*'
+            Resource: '*'
+          - Sid: Allow CloudWatch Logs
+            Effect: Allow
+            Principal:
+              Service: !Sub 'logs.${AWS::Region}.amazonaws.com'
+            Action:
+              - kms:Encrypt*
+              - kms:Decrypt*
+              - kms:ReEncrypt*
+              - kms:GenerateDataKey*
+              - kms:Describe*
+            Resource: '*'
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+
+  # ECR Repository
+  EMRONEKSRepository:
+    Type: AWS::ECR::Repository
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W28
+            reason: "Explicit name is required for ECR repository identification and integration with other systems"
+      checkov:
+        skip:
+          - id: CKV_AWS_51
+            comment: "Image tag mutability is required for the educational purposes for the blog post"
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      RepositoryName: !Ref EMRONEKSRepoName
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      ImageTagMutability: MUTABLE
+      EncryptionConfiguration:
+        EncryptionType: KMS
+        KmsKey: !GetAtt EMRONEKSKMSKey.Arn
+      Tags:
+        - Key: ProjectName
+          Value: !Ref ProjectName
+
+  # Single IAM Role for both Spark job clusters
+  EmrOnEKSSparkJobExecutionRole:
+    Type: AWS::IAM::Role
+    Metadata:
+      cdk_nag:
+        rules_to_suppress:
+          - id: AwsSolutions-IAM5
+            reason: "EMR on EKS requires CloudWatch Logs permissions with wildcard for dynamic log groups and S3 permissions for Spark logs"
+      cfn_nag:
+        rules_to_suppress:
+          - id: W28
+            reason: "Explicit name is required for identification and integration with other systems"
+    Properties:
+      RoleName: EmrOnEKSSparkJobExecutionRole
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          # Note: OIDC provider trust relationship for EKS service account is added post-deployment via update-trust-policy.sh script
+          # This approach is taken because CloudFormation has limitations with complex condition blocks in trust policies,
+          # particularly when using dynamic OIDC provider URLs with multiple conditions. Separating this concern ensures 
+          # reliable stack deployment while maintaining the required security configuration.
+          - Effect: Allow
+            Principal:
+              Service: elasticmapreduce.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: EmrOnEKSSparkJobPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "logs:CreateLogGroup"
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                  - "logs:DescribeLogGroups"
+                  - "logs:DescribeLogStreams"
+                Resource: "arn:aws:logs:*:*:*"
+              - Effect: Allow
+                Action:
+                  - kms:Decrypt
+                  - kms:GenerateDataKey
+                Resource: !GetAtt EMRONEKSKMSKey.Arn
+              # S3 permissions
+              - Effect: Allow
+                Action:
+                  - s3:ListBucket
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:DeleteObject
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:s3:::emr-spark-logs-${AWS::AccountId}-${AWS::Region}/*"
+                  - !Sub "arn:${AWS::Partition}:s3:::emr-spark-logs-${AWS::AccountId}-${AWS::Region}"
+      Tags:
+        - Key: ProjectName
+          Value: !Ref ProjectName
+
+  # AWSServiceRoleForAmazonEMRContainers
+  AWSServiceRoleForEMRContainers:
+    Type: AWS::IAM::Role
+    Condition: ShouldCreateEMRContainersServiceLinkedRole
+    Metadata:
+      cdk_nag:
+        rules_to_suppress:
+          - id: AwsSolutions-IAM4
+            reason: "AWS managed policy AmazonEMRContainersServiceRolePolicy is required for EMR on EKS service-linked role functionality"
+      cfn_nag:
+        rules_to_suppress:
+          - id: W28
+            reason: "Explicit name required as this is a service-linked role with a specific required name"
+    Properties:
+      RoleName: AWSServiceRoleForAmazonEMRContainers
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: emr-containers.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/aws-service-role/AmazonEMRContainersServiceRolePolicy
+      Policies:
+        - PolicyName: KMSAccessForLogs
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - kms:Decrypt
+                  - kms:GenerateDataKey
+                Resource: !GetAtt EMRONEKSKMSKey.Arn
+      Tags:
+        - Key: ProjectName
+          Value: !Ref ProjectName
+
+Outputs:
+  EmrOnEKSSparkJobExecutionRoleArn:
+    Description: ARN of the IAM Role for EMR Spark jobs
+    Value: !GetAtt EmrOnEKSSparkJobExecutionRole.Arn
