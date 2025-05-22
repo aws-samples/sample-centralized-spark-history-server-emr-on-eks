@@ -1,0 +1,111 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'AWS Client VPN Endpoint for Internal ALB Access'
+
+Parameters:
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: VPC where the Client VPN endpoint will be created
+  
+  DnsServerIp:
+    Type: String
+    Description: IP address of the DNS server for the VPN
+
+  SubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: Subnets to associate with the Client VPN endpoint
+
+  ClientCidrBlock:
+    Type: String
+    Default: 172.16.0.0/22
+    Description: IPv4 address range, in CIDR notation, from which to assign client IP addresses
+
+  ServerCertificateArn:
+    Type: String
+    Description: ARN of the server certificate in ACM
+
+  ClientCertificateArn:
+    Type: String
+    Description: ARN of the client certificate in ACM
+
+Resources:
+  ClientVPNEndpoint:
+    Type: AWS::EC2::ClientVpnEndpoint
+    Properties:
+      AuthenticationOptions:
+        - Type: certificate-authentication
+          MutualAuthentication:
+            ClientRootCertificateChainArn: !Ref ClientCertificateArn
+      ClientCidrBlock: !Ref ClientCidrBlock
+      ConnectionLogOptions:
+        Enabled: false
+      Description: Client VPN endpoint for internal ALB access
+      ServerCertificateArn: !Ref ServerCertificateArn
+      SplitTunnel: true
+      VpcId: !Ref VpcId
+      SecurityGroupIds: 
+        - !Ref ClientVPNSecurityGroup
+      VpnPort: 443
+      DnsServers:
+        - !Ref DnsServerIp
+
+  ClientVPNSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Metadata:
+      cdk_nag:
+        rules_to_suppress:
+          - id: AwsSolutions-EC23
+            reason: "Security group ingress is restricted to VPN CIDR range which is defined as a parameter"
+      cfn_nag:
+        rules_to_suppress:
+          - id: W42
+            reason: "All protocols are required for Client VPN endpoint functionality"
+          - id: W5
+            reason: "Allow all outbound traffic is required for VPN functionality"
+          - id: W40
+            reason: "All protocols are required for VPN communication"
+    Properties:
+      GroupDescription: Security group for Client VPN endpoint
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: -1
+          FromPort: -1
+          ToPort: -1
+          CidrIp: !Ref ClientCidrBlock
+          Description: "Allow all inbound traffic from Client VPN CIDR range"
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          FromPort: -1
+          ToPort: -1
+          CidrIp: 0.0.0.0/0
+          Description: "Allow all outbound traffic"
+
+  ClientVPNTargetNetwork:
+    Type: AWS::EC2::ClientVpnTargetNetworkAssociation
+    Properties:
+      ClientVpnEndpointId: !Ref ClientVPNEndpoint
+      SubnetId: !Select [0, !Ref SubnetIds]
+
+  ClientVPNAuthorizationRule:
+    Type: AWS::EC2::ClientVpnAuthorizationRule
+    Properties:
+      ClientVpnEndpointId: !Ref ClientVPNEndpoint
+      TargetNetworkCidr: '0.0.0.0/0'  # Allow access to all networks in VPC
+      AuthorizeAllGroups: true
+
+  ClientVPNRouteInternet:
+    Type: AWS::EC2::ClientVpnRoute
+    DependsOn: ClientVPNTargetNetwork
+    Properties:
+      ClientVpnEndpointId: !Ref ClientVPNEndpoint
+      DestinationCidrBlock: '0.0.0.0/0'
+      TargetVpcSubnetId: !Select [0, !Ref SubnetIds]
+      Description: 'Route to the internet'
+
+Outputs:
+  ClientVPNEndpointId:
+    Description: Client VPN Endpoint ID
+    Value: !Ref ClientVPNEndpoint
+
+  ClientVPNEndpointArn:
+    Description: Client VPN Endpoint ARN
+    Value: !Sub arn:aws:ec2:${AWS::Region}

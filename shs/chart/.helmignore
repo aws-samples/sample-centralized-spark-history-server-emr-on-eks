@@ -1,0 +1,11 @@
+.DS_Store
+.git/
+.gitignore
+.bzr/
+.bzrignore
+*.swp
+*.bak
+*.tmp
+*~
+values-eks-01.yaml
+values-proserver.yaml

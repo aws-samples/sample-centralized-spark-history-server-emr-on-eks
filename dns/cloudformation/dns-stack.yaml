@@ -1,0 +1,47 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Template for Route 53 DNS record creation in existing private hosted zone'
+
+Parameters:
+  HostedZoneId:
+    Type: String
+    Description: ID of the existing Route 53 private hosted zone (without /hostedzone/ prefix)
+
+  LoadBalancerDnsName:
+    Type: String
+    Description: DNS name of the existing load balancer
+
+  LoadBalancerHostedZoneId:
+    Type: String
+    Description: Canonical hosted zone ID of the existing load balancer
+  
+  DomainName:
+    Type: String
+    Description: Domain name of the existing hosted zone (e.g., example.internal)
+    Default: example.internal
+
+  RecordName:
+    Type: String
+    Description: DNS record name (e.g., spark-history-server for spark-history-server.example.internal)
+    Default: spark-history-server
+
+Resources:
+  # DNS Record for the Load Balancer in the existing hosted zone
+  LoadBalancerDnsRecord:
+    Type: AWS::Route53::RecordSet
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Sub "${RecordName}.${DomainName}."
+      Type: A
+      AliasTarget:
+        DNSName: !Ref LoadBalancerDnsName
+        HostedZoneId: !Ref LoadBalancerHostedZoneId
+        EvaluateTargetHealth: true
+
+Outputs:
+  LoadBalancerDnsAlias:
+    Description: DNS Alias for the Load Balancer
+    Value: !Sub "${RecordName}.${DomainName}"
+    Export:
+      Name: !Sub "${AWS::StackName}-LoadBalancerDnsAlias"

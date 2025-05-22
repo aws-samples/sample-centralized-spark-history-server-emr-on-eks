@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "spark.name" . }}-default-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "spark.labels" . | nindent 4 }}
+  {{- with .Values.configs.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+data:
+  spark-defaults.conf: |-
+    {{- if .Values.configs.spark_defaults_conf }}
+    {{- .Values.configs.spark_defaults_conf | nindent 4 }}
+    {{- else }}
+    # Default Spark configuration
+    spark.hadoop.fs.s3a.aws.credentials.provider=com.amazonaws.auth.WebIdentityTokenCredentialsProvider
+    spark.history.fs.eventLog.rolling.maxFilesToRetain=5
+    spark.hadoop.fs.s3a.impl=org.apache.hadoop.fs.s3a.S3AFileSystem
+    spark.eventLog.enabled=true
+    spark.history.ui.port={{ .Values.service.internal_port }}
+    {{- end }}

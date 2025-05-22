@@ -1,0 +1,10 @@
+apiVersion: v2
+name: spark-history-server
+description: A Helm chart for deploying Spark History Server in Kubernetes
+type: application
+version: 3.1.1-2
+appVersion: 3.1.1-2.3
+maintainers:
+  - name: AWS  
+    email: None 
+home: https://github.com/spark-history-server-chart

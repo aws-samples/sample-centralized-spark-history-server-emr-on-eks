@@ -1,0 +1,141 @@
+# -- Global configurations
+nameOverride: ""
+fullnameOverride: ""
+
+# -- Service Account configuration
+serviceAccount:
+  create: false
+  name: ""
+  annotations: {}
+
+# -- Image configuration
+image:
+  repository: ""
+  tag: ""
+  pullPolicy: Always
+
+# -- S3 bucket configuration
+s3:
+  bucket:
+    name: 
+    prefix: "/spark-events"
+
+# -- Deployment configuration
+deployment:
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 1
+      memory: 2Gi
+    limits:
+      cpu: 1
+      memory: 2Gi
+  env:
+    AWS_STS_REGIONAL_ENDPOINTS: "regional"
+    AWS_REGION: "us-east-1"
+
+# -- Pod-specific configurations
+podAnnotations: {}
+podSecurityContext:
+  runAsUser: 1000
+  fsGroup: 1000
+
+containerSecurityContext:
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 1000
+
+# -- Service configuration
+service:
+  type: ClusterIP
+  externalPort: 80
+  internalPort: 18080
+  annotations: {}
+
+# -- Ingress configuration
+ingress:
+  enabled: true
+  className: "alb"
+  annotations: {}
+  tls: []
+
+# -- Spark configuration
+configs:
+  annotations: {}
+  spark_defaults_conf: |-
+    spark.hadoop.fs.s3a.aws.credentials.provider=com.amazonaws.auth.WebIdentityTokenCredentialsProvider
+    spark.history.fs.eventLog.rolling.maxFilesToRetain=5
+    spark.hadoop.fs.s3a.impl=org.apache.hadoop.fs.s3a.S3AFileSystem
+    spark.eventLog.enabled=true
+    spark.history.ui.port=18080
+
+# -- S3 logs folder initialization configuration
+create_s3_logs_folder:
+  enabled: true
+  image:
+    repository: amazon/aws-cli
+    tag: latest
+    pullPolicy: Always
+  resources:
+    requests:
+      cpu: 250m
+      memory: 250Mi
+    limits:
+      cpu: 1           # No fractional CPU core. Using 1 full CPU core.
+      memory: 250Mi
+
+# -- Health check probes
+livenessProbe:
+  httpGet:
+    path: /
+    port: http
+  timeoutSeconds: 5
+  periodSeconds: 30
+  successThreshold: 1
+  failureThreshold: 3
+
+readinessProbe:
+  httpGet:
+    path: /
+    port: http
+  timeoutSeconds: 5
+  periodSeconds: 30
+  successThreshold: 1
+  failureThreshold: 3
+
+# -- Resource scheduling
+nodeSelector: {}
+affinity: {}
+tolerations: []
+
+# -- Logging configuration
+logLevel: INFO
+
+# -- Additional configurations
+extraEnv: []
+extraVolumes: []
+extraVolumeMounts: []
+
+# Autoscaling configuration
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 3
+  targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 80
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Pods
+        value: 1
+        periodSeconds: 180
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Pods
+        value: 1
+        periodSeconds: 180

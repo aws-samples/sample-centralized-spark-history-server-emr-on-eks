@@ -1,0 +1,291 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: |
+  CloudFormation template for deploying an Amazon EKS cluster for 
+  Spark History Server.
+
+Parameters:
+  ProjectName:
+    Description: A project name that is prefixed to resource names or tags
+    Type: String
+    Default: SparkHistoryServerMainStack
+    
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: VPC where EKS cluster will be created
+
+  PrivateSubnets:
+    Description: List of private subnet IDs for EKS clusters
+    Type: List<AWS::EC2::Subnet::Id>
+
+  SHSRepoName:
+    Description: Name of the ECR repository for Spark History Server Image
+    Type: String
+    Default: "spark-history-server" 
+
+  SHSClusterName:
+    Description: Name of the Spark History Server EKS cluster
+    Type: String
+    Default: spark-history-server
+
+  ClusterVersion:
+    Description: Kubernetes version for EKS clusters
+    Type: String
+    Default: "1.32"
+
+  InstanceType:
+    Description: EC2 instance type for EKS node groups
+    Type: String
+    Default: m5.4xlarge
+
+Resources:
+  # KMS
+  SHSEKSKMSKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: KMS key for EKS cluster secrets encryption
+      EnableKeyRotation: true
+      KeyPolicy:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: Enable IAM User Permissions
+            Effect: Allow
+            Principal:
+              AWS: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:root"
+            Action: "kms:*"
+            Resource: "*"
+          - Sid: Allow EKS to use the key
+            Effect: Allow
+            Principal:
+              AWS: !GetAtt SHSEKSClusterRole.Arn
+            Action:
+              - kms:Encrypt
+              - kms:Decrypt
+              - kms:ReEncrypt*
+              - kms:GenerateDataKey*
+              - kms:DescribeKey
+            Resource: "*"
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+
+  # ECR Repository
+  SHSRepository:
+    Type: AWS::ECR::Repository
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W28
+            reason: "Explicit name is required for ECR repository identification and integration with other systems"
+      checkov:
+        skip:
+          - id: CKV_AWS_51
+            comment: "Image tag mutability is required for the educational purposes for the blog post"
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      RepositoryName: !Ref SHSRepoName
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      ImageTagMutability: MUTABLE
+      EncryptionConfiguration:
+        EncryptionType: KMS
+        KmsKey: !GetAtt SHSEKSKMSKey.Arn
+      Tags:
+        - Key: ProjectName
+          Value: !Ref ProjectName
+  
+  # Roles
+  IAMRole:
+    Type: 'AWS::IAM::Role'
+    Metadata:
+      cdk_nag:
+        rules_to_suppress:
+          - id: W28
+            reason: "Explicit name is required for identification and integration with other systems"
+          - id: AwsSolutions-IAM5
+            reason: "CloudWatch Logs requires wildcard permissions for log groups and streams management"
+      cfn_nag:
+        rules_to_suppress:
+          - id: W28
+            reason: "Explicit name is required for identification and integration with other systems"
+    Properties:
+      RoleName: !Sub '${SHSClusterName}-irsa-role'
+      Description: 'IAM role for Spark History Server EKS service account'
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: eks.amazonaws.com
+            Action: sts:AssumeRole
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: !Sub '${SHSClusterName}-irsa-role-policy'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              # Note: OIDC provider trust relationship for EKS service account is added post-deployment via update-trust-policy.sh script
+              # This approach is taken because CloudFormation has limitations with complex condition blocks in trust policies,
+              # particularly when using dynamic OIDC provider URLs with multiple conditions. Separating this concern ensures 
+              # reliable stack deployment while maintaining the required security configuration.
+              - Effect: Allow
+                Action:
+                  - "logs:CreateLogGroup"
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                  - "logs:DescribeLogGroups"
+                  - "logs:DescribeLogStreams"
+                Resource: !Sub "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*"
+              - Effect: Allow
+                Action:
+                  - kms:Decrypt
+                  - kms:GenerateDataKey
+                Resource: !GetAtt SHSEKSKMSKey.Arn
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:PutObjectAcl
+                  - s3:DeleteObject
+                  - s3:ListBucket
+                  - s3:ListBucketMultipartUploads
+                  - s3:ListMultipartUploadParts
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:s3:::emr-spark-logs-${AWS::AccountId}-${AWS::Region}/*"
+                  - !Sub "arn:${AWS::Partition}:s3:::emr-spark-logs-${AWS::AccountId}-${AWS::Region}"
+      Tags:
+        - Key: ProjectName
+          Value: !Ref ProjectName
+
+  SHSEKSClusterRole:
+    Type: AWS::IAM::Role
+    Metadata:
+      cdk_nag:
+        rules_to_suppress:
+          - id: AwsSolutions-IAM4
+            reason: "AmazonEKSClusterPolicy is required for EKS cluster functionality"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: eks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEKSClusterPolicy
+
+  SHSEKSNodeRole:
+    Type: AWS::IAM::Role
+    Metadata:
+      cdk_nag:
+        rules_to_suppress:
+          - id: AwsSolutions-IAM4
+            reason: "Required AWS managed policies for EKS worker nodes functionality"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy
+        - arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy
+        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
+
+  # SHS EKS Cluster Security Group
+  SHSEKSClusterSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W5
+            reason: "Allow all outbound traffic is required for EKS cluster functionality"
+          - id: W40
+            reason: "All protocols are required for EKS cluster communication"
+    Properties:
+      GroupDescription: Security group for EKS cluster
+      VpcId: !Ref VpcId
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          # FromPort: -1
+          # ToPort: -1
+          CidrIp: 0.0.0.0/0
+          Description: "Allow all outbound traffic"
+      Tags:
+        - Key: Name
+          Value: !Sub ${ProjectName}-eks-cluster-sg
+
+  # Spark History Server EKS Cluster
+  SHSEKSCluster:
+    Type: AWS::EKS::Cluster
+    Metadata:
+      cdk_nag:
+        rules_to_suppress:
+          - id: AwsSolutions-EKS2
+            reason: "Control plane logging is not required for this blog post demonstration"
+    Properties:
+      Name: !Ref SHSClusterName
+      Version: !Ref ClusterVersion
+      RoleArn: !GetAtt SHSEKSClusterRole.Arn
+      ResourcesVpcConfig:
+        SubnetIds: !Ref PrivateSubnets
+        SecurityGroupIds: 
+            - !Ref SHSEKSClusterSecurityGroup
+      EncryptionConfig:
+        - Provider:
+            KeyArn: !GetAtt SHSEKSKMSKey.Arn
+          Resources:
+            - secrets
+      Tags:
+        - Key: ProjectName
+          Value: !Ref ProjectName
+
+  SHSNodeGroup:
+    Type: AWS::EKS::Nodegroup
+    DeletionPolicy: Delete
+    UpdatePolicy:
+      UpdateReplacePolicy: Retain
+    Properties:
+      ClusterName: !Ref SHSEKSCluster
+      NodeRole: !GetAtt SHSEKSNodeRole.Arn
+      ScalingConfig:
+        MinSize: 1
+        DesiredSize: 3
+        MaxSize: 5
+      InstanceTypes:
+        - !Ref InstanceType
+      Subnets: !Ref PrivateSubnets
+
+
+Outputs:
+  SHSRepoName:
+    Description: Name of the Spark History Server ECR repository
+    Value: !Ref SHSRepository
+
+  SHSRepoUri:
+    Description: URI of the Spark History Server ECR repository
+    Value: !GetAtt SHSRepository.RepositoryUri
+
+  SHSClusterName:
+    Description: Name of the SHS EKS cluster
+    Value: !Ref SHSEKSCluster
+
+  SHSClusterEndpoint:
+    Description: Endpoint for the SHS EKS cluster
+    Value: !GetAtt SHSEKSCluster.Endpoint
+
+  SHSEKSSecurityGroup:
+    Description: ID of the second EKS Security Group
+    Value: !GetAtt SHSEKSCluster.ClusterSecurityGroupId
+
+  SHSClusterOidcProviderUrl:
+    Value:
+      !Select [
+        1,
+        !Split ["https://", !GetAtt SHSEKSCluster.OpenIdConnectIssuerUrl],
+      ]

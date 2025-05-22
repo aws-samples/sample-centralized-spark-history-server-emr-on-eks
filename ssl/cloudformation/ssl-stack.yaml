@@ -1,0 +1,121 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Template for Private CA, Certificate, Route 53 Private Hosted Zone, and Load Balancer Certificate Integration'
+
+Parameters:
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: VPC ID for the Route 53 private hosted zone
+
+  DomainName:
+    Type: String
+    Description: Domain name for the certificate and DNS entry (e.g., example.internal)
+    Default: example.internal
+
+  RecordName:
+    Type: String
+    Description: DNS record name (e.g., spark-history-server for spark-history-server.example.internal)
+    Default: spark-history-server
+
+  PrivateCACommonName:
+    Type: String
+    Description: Common Name for the Private CA
+    Default: Spark History Server Demo CA
+
+  PrivateCAOrganization:
+    Type: String
+    Description: Organization name for the Private CA
+    Default: SHS INC
+
+  PrivateCACountry:
+    Type: String
+    Description: Two-letter country code for the Private CA
+    Default: US
+    MinLength: 2
+    MaxLength: 2
+
+Resources:
+  # 1. Private Certificate Authority
+  PrivateCA:
+    Type: AWS::ACMPCA::CertificateAuthority
+    Properties:
+      Type: ROOT
+      KeyAlgorithm: RSA_2048
+      SigningAlgorithm: SHA256WITHRSA
+      Subject:
+        Country: !Ref PrivateCACountry
+        Organization: !Ref PrivateCAOrganization
+        OrganizationalUnit: IT
+        CommonName: !Ref PrivateCACommonName
+      RevocationConfiguration:
+        CrlConfiguration:
+          Enabled: false
+      Tags:
+        - Key: Name
+          Value: !Sub "${AWS::StackName}-PrivateCA"
+  
+  # 2. Create self-signed certificate for the CA
+  PrivateCACertificate:
+    Type: AWS::ACMPCA::Certificate
+    Properties:
+      CertificateAuthorityArn: !Ref PrivateCA
+      CertificateSigningRequest: !GetAtt PrivateCA.CertificateSigningRequest
+      SigningAlgorithm: SHA256WITHRSA
+      TemplateArn: 'arn:aws:acm-pca:::template/RootCACertificate/V1'
+      Validity:
+        Type: YEARS
+        Value: 10
+
+  # 2. Activate the Private CA
+  PrivateCAActivation:
+    Type: AWS::ACMPCA::CertificateAuthorityActivation
+    DependsOn: PrivateCA
+    Properties:
+      Certificate: !GetAtt PrivateCACertificate.Certificate
+      CertificateAuthorityArn: !Ref PrivateCA
+      Status: ACTIVE
+
+  # 3. Certificate from Private CA
+  Certificate:
+    Type: AWS::CertificateManager::Certificate
+    DependsOn: PrivateCAActivation  # Changed from InstallCACertificate
+    Properties:
+      DomainName: !Ref DomainName
+      SubjectAlternativeNames:
+        - !Sub "*.${DomainName}"
+      CertificateAuthorityArn: !Ref PrivateCA
+      Tags:
+        - Key: Name
+          Value: !Sub "${AWS::StackName}-Certificate"
+
+  # 4. Route 53 Private Hosted Zone
+  PrivateHostedZone:
+    Type: AWS::Route53::HostedZone
+    Properties:
+      Name: !Ref DomainName
+      VPCs:
+        - VPCId: !Ref VpcId
+          VPCRegion: !Ref "AWS::Region"
+      HostedZoneConfig:
+        Comment: !Sub "Private hosted zone for ${DomainName}"
+      HostedZoneTags:
+        - Key: Name
+          Value: !Sub "${AWS::StackName}-PrivateHostedZone"
+
+Outputs:
+  PrivateCAArn:
+    Description: ARN of the Private Certificate Authority
+    Value: !Ref PrivateCA
+    Export:
+      Name: !Sub "${AWS::StackName}-PrivateCAArn"
+
+  CertificateArn:
+    Description: ARN of the Certificate
+    Value: !Ref Certificate
+    Export:
+      Name: !Sub "${AWS::StackName}-CertificateArn"
+
+  PrivateHostedZoneId:
+    Description: ID of the Private Hosted Zone
+    Value: !Ref PrivateHostedZone
+    Export:
+      Name: !Sub "${AWS::StackName}-PrivateHostedZoneId"

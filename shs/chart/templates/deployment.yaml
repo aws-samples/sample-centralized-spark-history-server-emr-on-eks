@@ -1,0 +1,86 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "spark.name" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "spark.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.deployment.replicaCount }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 50%
+      maxSurge: 1
+  selector:
+    matchLabels:
+      {{- include "spark.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap-spark-defaults-conf.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "spark.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "spark.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      initContainers:
+        {{- include "spark.initContainer" . | nindent 8 }}
+      containers:
+        - name: history-server
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - '/opt/spark/sbin/start-history-server.sh'
+          env:
+            - name: SPARK_NO_DAEMONIZE
+              value: "false"
+            - name: SPARK_HISTORY_OPTS
+              value: "-Dspark.history.fs.logDirectory=s3a://{{ .Values.s3.bucket.name}}{{ .Values.s3.bucket.prefix}}"
+            - name: SPARK_CONF_DIR
+              value: /opt/spark/conf
+            - name: AWS_STS_REGIONAL_ENDPOINTS
+              value: {{ .Values.deployment.env.AWS_STS_REGIONAL_ENDPOINTS | quote}}
+            - name: AWS_REGION
+              value: {{ .Values.deployment.env.AWS_REGION | quote}}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.internalPort }}
+              protocol: TCP
+          livenessProbe:
+            {{- toYaml .Values.livenessProbe | nindent 12 }}
+          readinessProbe:
+            {{- toYaml .Values.readinessProbe | nindent 12 }}
+          resources:
+            {{- toYaml .Values.deployment.resources | nindent 12 }}
+          volumeMounts:
+            - name: spark-defaults-conf
+              mountPath: /opt/spark/conf/spark-defaults.conf
+              subPath: spark-defaults.conf
+            - name: opt-spark-logs
+              mountPath: /opt/spark/logs
+              readOnly: false
+      volumes:
+        - name: spark-defaults-conf
+          configMap:
+            name: {{ include "spark.name" . }}-default-config
+        - name: opt-spark-logs
+          emptyDir: {}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
