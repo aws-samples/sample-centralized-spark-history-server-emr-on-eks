@@ -1,0 +1,68 @@
+# .gitignore
+
+# SYSTEM AND EDITOR FILES
+.DS_Store
+.vscode
+
+# PROJECT-SPECIFIC DIRECTORIES
+repoLinter
+repoLinter/*
+ash_output
+ash_output/*
+probe_output
+probe_output/*
+jars
+jars/*
+
+# SENSITIVE AND CONFIGURATION FILES
+*.pem
+*.env
+*.tgz
+
+# DYNAMICALLY GENERATED FILES
+# The following files are excluded from version control because they are
+# dynamically created during runtime or setup:
+
+# 1. Files generated from *.tpl templates
+# 2. SSL/TLS certificates (*.key, *.crt)
+# 3. OpenVPN configuration files (*.ovpn)
+
+# Excluding these files ensures security, consistent generation,
+# and a cleaner repository.
+
+# infra
+infra/cloudformation/parameters.json
+
+# emr-on-eks
+emr-on-eks/cloudformation/parameters.json
+
+# jobs
+jobs/start-job-run/start-job-run-request-datascience-cluster-v.json
+jobs/start-job-run/start-job-run-request-analytics-cluster-v.json
+jobs/spark-operator/spark-history-demo-analytics-cluster-v.yaml
+jobs/spark-operator/spark-history-demo-datascience-cluster-v.yaml
+
+# shs
+shs/cloudformation/parameters.json
+shs/chart/values-shs.yaml
+shs/iam_policy_1.json
+shs/iam_policy_2.json
+
+# vpn
+vpn/cloudformation/parameters.json
+vpn/client_vpn_certs
+vpn/client_vpn_certs/easy-rsa
+vpn/client_vpn_certs/ca.crt
+vpn/client_vpn_certs/shs-vpn-server.key
+vpn/client_vpn_certs/shs-vpn-server.crt
+vpn/client_vpn_certs/shs-vpn-client.key
+vpn/client_vpn_certs/shs-vpn-client.crt
+vpn/client_vpn_certs/client-config.ovpn
+
+# ssl
+ssl/cloudformation/parameters.json
+ssl/certificates/
+ssl/certificates/*.pem
+
+# dns
+dns/cloudformation/parameters.json
