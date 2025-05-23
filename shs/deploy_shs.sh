@@ -301,17 +301,17 @@ EOF
 # Login to ECR
 login_to_ecr() {
     log "Logging into ECR..."
-    aws ecr get-login-password | finch login --username AWS --password-stdin "$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com"
+    aws ecr get-login-password | docker login --username AWS --password-stdin "$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com"
 }
 
 # Build and push Docker image to ECR
 build_and_push_shs_image() {
     log "Building Docker image..."
-    finch build -t "$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$SHS_ECR_REPO_NAME:$SHS_IMAGE_TAG" \
+    docker build -t "$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$SHS_ECR_REPO_NAME:$SHS_IMAGE_TAG" \
     --platform linux/amd64 -f "$SHS_DOCKERFILE_PATH" .
 
     log "Pushing Docker image to ECR..."
-    finch push "$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$SHS_ECR_REPO_NAME:$SHS_IMAGE_TAG"
+    docker push "$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$SHS_ECR_REPO_NAME:$SHS_IMAGE_TAG"
 }
 
 # Push Helm chart to ECR
@@ -633,7 +633,7 @@ fi
 
 # Check for required tools
 command -v aws >/dev/null 2>&1 || { log "AWS CLI is required but it's not installed. Aborting."; exit 1; }
-command -v finch >/dev/null 2>&1 || { log "Docker is required but it's not installed. Aborting."; exit 1; }
+command -v docker >/dev/null 2>&1 || { log "Docker is required but it's not installed. Aborting."; exit 1; }
 command -v helm >/dev/null 2>&1 || { log "Helm is required but it's not installed. Aborting."; exit 1; }
 
 # No AWS CLI Output Paginated Output

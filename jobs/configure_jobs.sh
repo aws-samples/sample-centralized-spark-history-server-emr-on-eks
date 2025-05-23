@@ -113,25 +113,25 @@ get_emr_virtual_cluster_id() {
 # Pull EMR on EKS Base Image
 pull_base_emr_image() {
     # Login
-    aws ecr-public get-login-password --region us-east-1 | finch login --username AWS --password-stdin public.ecr.aws
+    aws ecr-public get-login-password --region us-east-1 | docker login --username AWS --password-stdin public.ecr.aws
     # Pull
-    finch pull public.ecr.aws/emr-on-eks/spark/emr-7.2.0:20241010
+    docker pull public.ecr.aws/emr-on-eks/spark/emr-7.2.0:20241010
 }
 
 # Login to ECR
 login_to_ecr() {
     log "Logging into ECR..."
-    aws ecr get-login-password | finch login --username AWS --password-stdin "$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com"
+    aws ecr get-login-password | docker login --username AWS --password-stdin "$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com"
 }
 
 # Build Custom Image and Puch to ECR
 build_and_push_emr_image() {
     log "Building EMR custom Docker image..."
-    finch build -t "$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$EMR_REPO_NAME:$EMR_IMAGE_TAG" \
+    docker build -t "$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$EMR_REPO_NAME:$EMR_IMAGE_TAG" \
     --platform linux/amd64 -f "$EMR_DOCKERFILE_PATH" .
 
     log "Pushing EMR Docker image to ECR..."
-    finch push "$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$EMR_REPO_NAME:$EMR_IMAGE_TAG"
+    docker push "$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$EMR_REPO_NAME:$EMR_IMAGE_TAG"
 }
 
 # Custom Amazon EMR on EKS Image with DatFlint - End
