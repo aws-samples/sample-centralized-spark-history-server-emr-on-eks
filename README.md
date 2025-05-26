@@ -131,7 +131,7 @@ cd $REPO_DIR/dns
    - Open Keychain Access (Applications > Utilities > Keychain Access)
    - Select "System" keychain on the left sidebar
    - Click File > Import Items...
-   - Navigate to `${REPO_DIR}/ssl/certificates` and select `ca-certificate-${AWS_ACCOUNT_ID}-${AWS_REGION}.pem`
+   - Navigate to `${REPO_DIR}/ssl/certificates` and select `ca-certificate.pem`
    - Once imported, locate the certificate in the list
    - Double-click the certificate to open its properties
    - Expand the "Trust" section
@@ -141,14 +141,14 @@ cd $REPO_DIR/dns
    **Alternatively, Using Terminal (Command Line)**
    ```sh
    # Add to system keychain
-   sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain "${REPO_DIR}/ssl/certificates/ca-certificate-${AWS_ACCOUNT_ID}-${AWS_REGION}.pem"
+   sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain "${REPO_DIR}/ssl/certificates/ca-certificate.pem"
    ```
 
 2. For Windows:
    
    **Using Certificate Manager (GUI)**
-   - Rename the `ca-certificate-${AWS_ACCOUNT_ID}-${AWS_REGION}.pem` to `ca-certificate-${AWS_ACCOUNT_ID}-${AWS_REGION}.crt`.
-   - Right-click on `ca-certificate-${AWS_ACCOUNT_ID}-${AWS_REGION}.crt` and select "Install Certificate"
+   - Rename the `ca-certificate.pem` to `ca-certificate.crt`.
+   - Right-click on `ca-certificate.crt` and select "Install Certificate"
    - Select "Local Machine" and click "Next" (requires admin privileges)
    - Choose "Place all certificates in the following store"
    - Click "Browse", select "Trusted Root Certification Authorities", and click "OK"
@@ -191,6 +191,18 @@ To remove all resources created by this solution:
 cd $REPO_DIR
 ./cleanup.sh
 ```
+
+## Important Note ⚠️
+
+This code is intentionally designed with simplicity in mind to illustrate the concepts discussed in the blog post. The current implementation is meant for deploying a single instance of the solution.
+If you plan to deploy multiple instances of this solution, you will need to modify the following:
+
+- File names
+- AWS resource names (e.g., IAM Roles, IAM Policies)
+- Resource identifiers
+- Other unique AWS object names
+
+This modification is necessary to avoid naming conflicts and ensure proper resource isolation between different instances of the solution. The current naming conventions are kept straightforward for demonstration purposes. For production or multiple deployments, please ensure you implement appropriate naming strategies that align with your organization's standards and requirements.
 
 ## Contributing
 

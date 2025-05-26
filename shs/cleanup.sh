@@ -208,16 +208,22 @@ delete_iam_resources() {
     log "Deleting IAM resources..."
 
     # Delete Load Balancer Controller IAM role
-    if aws iam get-role --role-name AmazonEKSLoadBalancerControllerRole >/dev/null 2>&1; then
-        aws iam delete-role-policy --role-name AmazonEKSLoadBalancerControllerRole --policy-name AWSLoadBalancerControllerIAMPolicy || true
-        aws iam delete-role --role-name AmazonEKSLoadBalancerControllerRole || true
-    fi
+    aws iam delete-role-policy --role-name AmazonEKSLoadBalancerControllerRole --policy-name AWSLoadBalancerControllerIAMPolicy-part1 2>/dev/null || true
+    aws iam delete-role-policy --role-name AmazonEKSLoadBalancerControllerRole --policy-name AWSLoadBalancerControllerIAMPolicy-part2 2>/dev/null || true
+    aws iam delete-role --role-name AmazonEKSLoadBalancerControllerRole 2>/dev/null || true
 
-    # Delete Load Balancer Controller IAM policy
-    local policy_arn=$(aws iam list-policies --query "Policies[?PolicyName=='AWSLoadBalancerControllerIAMPolicy'].Arn" --output text)
-    if [ ! -z "$policy_arn" ]; then
-        aws iam delete-policy --policy-arn "$policy_arn" || true
-    fi
+    log "Deleted IAM role and its policies"
+
+    # Attempt to delete standalone policies
+    for policy in "AWSLoadBalancerControllerIAMPolicy-part1" "AWSLoadBalancerControllerIAMPolicy-part2"; do
+        local policy_arn=$(aws iam list-policies --query "Policies[?PolicyName=='$policy'].Arn" --output text)
+        if [ ! -z "$policy_arn" ]; then
+            aws iam delete-policy --policy-arn "$policy_arn" 2>/dev/null || true
+        fi
+    done
+
+    log "Deleted standalone policies if any"
+
 }
 
 # Delete CloudFormation stack

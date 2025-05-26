@@ -151,7 +151,7 @@ deploy_stack() {
 # Download private CA certificate
 download_ca_certificate() {
     local output_dir="${1:-${REPO_DIR}/ssl/certificates}"
-    local output_file="${output_dir}/ca-certificate-${AWS_ACCOUNT_ID}-${AWS_REGION}.pem"
+    local output_file="${output_dir}/ca-certificate.pem"
     
     log "Downloading Spark History Server Demo private CA certificate..."
     

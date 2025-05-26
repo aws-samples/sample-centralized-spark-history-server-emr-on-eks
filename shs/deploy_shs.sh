@@ -462,27 +462,28 @@ deploy_aws_load_balancer_controller() {
       aws_lb_controller_policy_arn_2="$existing_policy_arn_2"
   fi
 
-  # Create IRSA 
-  # Check if IAM service account exists
-  if ! aws iam get-role --role-name AmazonEKSLoadBalancerControllerRole &> /dev/null; then
-      # Create IRSA only if the role doesn't exist
-      eksctl create iamserviceaccount \
-      --cluster="${SHS_CLUSTER_NAME}" \
-      --namespace=kube-system \
-      --name=aws-load-balancer-controller \
-      --role-name AmazonEKSLoadBalancerControllerRole \
-      --attach-policy-arn="${aws_lb_controller_policy_arn_1}" \
-      --attach-policy-arn="${aws_lb_controller_policy_arn_2}" \
-      --approve
-  fi
+  # Create IRSA
+  log "Creating Role AmazonEKSLoadBalancerControllerRole ..."
+  # --override-existing-serviceaccounts is used to force recreate the IAM service account
+  eksctl create iamserviceaccount \
+    --cluster="${SHS_CLUSTER_NAME}" \
+    --namespace=kube-system \
+    --name=aws-load-balancer-controller \
+    --role-name AmazonEKSLoadBalancerControllerRole \
+    --attach-policy-arn="${aws_lb_controller_policy_arn_1}" \
+    --attach-policy-arn="${aws_lb_controller_policy_arn_2}" \
+    --override-existing-serviceaccounts \
+    --approve
 
   # Configure Helm repo
   helm repo add eks https://aws.github.io/eks-charts || true
   helm repo update eks
   
   # Install aws-load-balancer-controller chart
+  # Pinning a specific version of aws-load-balancer-controller for consistent user expereince
   helm upgrade --install aws-load-balancer-controller eks/aws-load-balancer-controller \
     -n kube-system \
+    --version 1.13.1 \
     --set clusterName="$SHS_CLUSTER_NAME" \
     --set serviceAccount.create=false \
     --set serviceAccount.name="aws-load-balancer-controller" \

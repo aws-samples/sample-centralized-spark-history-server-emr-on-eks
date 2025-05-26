@@ -308,7 +308,7 @@ download_vpn_config() {
     fi
 
     # Download the configuration file
-    local config_file="${REPO_DIR}/vpn/${CERT_DIR}/client-config-${AWS_ACCOUNT_ID}-${AWS_REGION}.ovpn"
+    local config_file="${REPO_DIR}/vpn/${CERT_DIR}/client-config.ovpn"
     aws ec2 export-client-vpn-client-configuration \
         --client-vpn-endpoint-id "$vpn_endpoint_id" \
         --output text > "$config_file" || { log "Error: Failed to download configuration file"; return 1; }
@@ -321,7 +321,7 @@ download_vpn_config() {
 prepare_vpn_config() {
     log "Preparing VPN configuration file..."
     
-    local config_file="${REPO_DIR}/vpn/${CERT_DIR}/client-config-${AWS_ACCOUNT_ID}-${AWS_REGION}.ovpn"
+    local config_file="${REPO_DIR}/vpn/${CERT_DIR}/client-config.ovpn"
     local client_cert="${REPO_DIR}/vpn/${CERT_DIR}/${CLIENT_NAME}.crt"
     local client_key="${REPO_DIR}/vpn/${CERT_DIR}/${CLIENT_NAME}.key"
 
