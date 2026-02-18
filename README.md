@@ -16,6 +16,14 @@ This solution consists of:
 
 The result is a centralized, secure, and scalable platform that enables teams to monitor, analyze, and troubleshoot Spark applications across multiple clusters through a single interface.
 
+## Application ID Collision Analysis
+
+When centralizing Spark logs from multiple clusters to a single S3 location, all applications write to the same `spark.eventLog.dir`. This raises the question of potential `spark.app.id` collisions that could cause log overwrites.
+
+We have analyzed the collision probability for both job submission methods used in this solution. The analysis confirms that collision risk is **mathematically negligible** at any realistic operational scale.
+
+📄 **[Read the full collision analysis](SPARK-APP-ID-COLLISION-ANALYSIS.md)** before implementing this solution.
+
 ## Prerequisites
 
 Before deploying this solution, ensure you have:
