@@ -214,8 +214,6 @@ Both methods provide collision probabilities that are:
 
 The Spark Operator method (Case 2) provides approximately 10^9 times more ID space than the EMR start-job-run method (Case 1), but both are far beyond any practical collision risk threshold.
 
-**Recommendation**: No additional collision mitigation is required for either job submission method when using centralized Spark History Server logging.
-
 ---
 
 ## References
