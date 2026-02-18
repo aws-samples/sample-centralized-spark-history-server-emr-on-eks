@@ -117,7 +117,8 @@ When using Spark Operator (or native `spark-submit` to Kubernetes), the `spark.a
 
 From Apache Spark source (`KubernetesClientApplication.scala`):
 ```scala
-val appId = "spark-" + UUID.randomUUID().toString.replaceAll("-", "")
+def getKubernetesAppId(): String =
+  s"spark-${UUID.randomUUID().toString.replaceAll("-", "")}"
 ```
 
 This generates a UUID v4 (random) and removes the dashes, resulting in 32 hex characters.
@@ -219,4 +220,4 @@ The Spark Operator method (Case 2) provides approximately 10^9 times more ID spa
 
 ## References
 
-- [Apache Spark Source - KubernetesClientApplication](https://github.com/apache/spark/blob/master/resource-managers/kubernetes/core/src/main/scala/org/apache/spark/deploy/k8s/submit/KubernetesClientApplication.scala)
+- [Apache Spark Source - KubernetesClientApplication](https://github.com/apache/spark/blob/master/resource-managers/kubernetes/core/src/main/scala/org/apache/spark/deploy/k8s/KubernetesConf.scala)
