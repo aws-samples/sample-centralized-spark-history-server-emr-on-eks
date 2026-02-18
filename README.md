@@ -22,7 +22,7 @@ When centralizing Spark logs from multiple clusters to a single S3 location, all
 
 We have analyzed the collision probability for both job submission methods used in this solution. The analysis confirms that collision risk is **mathematically negligible** at any realistic operational scale.
 
-📄 **[Read the full collision analysis](SPARK-APP-ID-COLLISION-ANALYSIS.md)** before implementing this solution.
+**[Read the full collision analysis](SPARK-APP-ID-COLLISION-ANALYSIS.md)** before implementing this solution.
 
 ## Prerequisites
 
