@@ -210,7 +210,6 @@ For a log overwrite collision to occur, both conditions must be met:
 Both methods provide collision probabilities that are:
 - **Astronomically small** at any realistic scale
 - **Effectively zero** for practical purposes
-- **Safe for production** centralized logging architectures
 
 The Spark Operator method (Case 2) provides approximately 10^9 times more ID space than the EMR start-job-run method (Case 1), but both are far beyond any practical collision risk threshold.
 
