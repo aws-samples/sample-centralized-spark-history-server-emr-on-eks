@@ -25,7 +25,7 @@ The `spark.app.id` is generated differently depending on how you submit your Spa
 
 2. **Spark Operator / spark-submit to Kubernetes** - Case 2:
    - Spark generates the ID locally on the client side before submitting to Kubernetes
-   - Generated in `KubernetesClientApplication.scala`
+   - Generated in `KubernetesConf.scala`
    - Format: `spark-[randomUUID-without-dashes]`
    - Uses Java's `UUID.randomUUID()` producing a 128-bit random UUID
 
@@ -115,7 +115,7 @@ When using Spark Operator (or native `spark-submit` to Kubernetes), the `spark.a
 
 ### Source Code Generation
 
-From Apache Spark source (`KubernetesClientApplication.scala`):
+From Apache Spark source (`KubernetesConf.scala`):
 ```scala
 def getKubernetesAppId(): String =
   s"spark-${UUID.randomUUID().toString.replaceAll("-", "")}"
@@ -220,4 +220,4 @@ The Spark Operator method (Case 2) provides approximately 10^9 times more ID spa
 
 ## References
 
-- [Apache Spark Source - KubernetesClientApplication](https://github.com/apache/spark/blob/master/resource-managers/kubernetes/core/src/main/scala/org/apache/spark/deploy/k8s/KubernetesConf.scala)
+- [Apache Spark Source - KubernetesConf](https://github.com/apache/spark/blob/master/resource-managers/kubernetes/core/src/main/scala/org/apache/spark/deploy/k8s/KubernetesConf.scala)
